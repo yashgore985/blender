@@ -13,18 +13,19 @@ jobs:
       ANDROID_API_LEVEL: "30"
 
     steps:
-    - name: 📥 Checkout Blender Repo
-      uses: actions/checkout@v4
-      with:
-        submodules: true  # This ensures submodules like 'lib' are pulled correctly
+    - name: 🧾 Clone Blender Source
+      run: |
+        git clone --depth=1 --recursive https://github.com/blender/blender.git
+        cd blender
+        git submodule update --init --recursive
 
     - name: 📦 Install Dependencies
       run: |
         sudo apt update
         sudo apt install -y cmake git wget unzip ninja-build yasm \
-            build-essential libxi-dev libxcursor-dev libxrandr-dev \
-            libxinerama-dev libglu1-mesa-dev libglew-dev libopenal-dev \
-            libssl-dev libpulse-dev libxcursor-dev libxrender-dev python3
+          build-essential libxi-dev libxcursor-dev libxrandr-dev \
+          libxinerama-dev libglu1-mesa-dev libglew-dev libopenal-dev \
+          libssl-dev libpulse-dev libxcursor-dev libxrender-dev python3
 
     - name: 📁 Setup Android SDK & NDK
       run: |
@@ -35,7 +36,6 @@ jobs:
         mv cmdline-tools/cmdline-tools cmdline-tools/latest
 
         export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-
         yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
 
         $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
@@ -53,7 +53,7 @@ jobs:
 
     - name: 🔨 Build Blender for Android
       run: |
-        cd $GITHUB_WORKSPACE
+        cd blender
         python3 ./build_files/utils/make_project.py \
           --android \
           --arch arm64-v8a \
@@ -62,8 +62,7 @@ jobs:
           --verbose
 
     - name: 📤 Upload Blender APK
-      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: blender-android-apk
-        path: build_android_arm64_v8a/install/blender.apk
+        path: blender/build_android_arm64_v8a/install/blender.apk
