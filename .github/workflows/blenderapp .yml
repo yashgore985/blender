@@ -15,8 +15,10 @@ jobs:
     steps:
     - name: 📥 Checkout Blender Repo
       uses: actions/checkout@v4
+      with:
+        submodules: true  # This ensures submodules like 'lib' are pulled correctly
 
-    - name: 📦 Install Build Dependencies
+    - name: 📦 Install Dependencies
       run: |
         sudo apt update
         sudo apt install -y cmake git wget unzip ninja-build yasm \
@@ -42,18 +44,16 @@ jobs:
           "build-tools;30.0.3" \
           "ndk;${ANDROID_NDK_VERSION}"
 
-    - name: ✅ Export Android Env
+    - name: ✅ Export Android Paths
       run: |
         echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
         echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${ANDROID_NDK_VERSION}" >> $GITHUB_ENV
         echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
         echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
-    - name: 🔨 Build Blender Android
+    - name: 🔨 Build Blender for Android
       run: |
-        set -ex
-        git clone --recursive https://projects.blender.org/blender/blender.git
-        cd blender
+        cd $GITHUB_WORKSPACE
         python3 ./build_files/utils/make_project.py \
           --android \
           --arch arm64-v8a \
@@ -61,9 +61,9 @@ jobs:
           --ndk-dir "$ANDROID_SDK_ROOT/ndk/${ANDROID_NDK_VERSION}" \
           --verbose
 
-    - name: 📤 Upload Blender Android APK
+    - name: 📤 Upload Blender APK
       if: success()
       uses: actions/upload-artifact@v4
       with:
         name: blender-android-apk
-        path: blender/build_android_arm64_v8a/install/blender.apk
+        path: build_android_arm64_v8a/install/blender.apk
