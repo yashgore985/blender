@@ -1,71 +1,68 @@
-name: Build Blender Android APK
+name: Blender Android Build
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   build:
+    name: Build Blender Android
     runs-on: ubuntu-latest
 
     env:
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
-      ANDROID_NDK_VERSION: "25.2.9519653"
-      ANDROID_API_LEVEL: "30"
+      ANDROID_NDK_VERSION: r25c
+      ANDROID_API_LEVEL: 24
+      ANDROID_ABI: arm64-v8a
+      BLENDER_BRANCH: main
 
     steps:
-    - name: 🧾 Install Git LFS and Clone Blender Source
+    - name: Checkout Blender source
+      uses: actions/checkout@v3
+      with:
+        repository: blender/blender
+        ref: ${{ env.BLENDER_BRANCH }}
+        submodules: true
+
+    - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install -y git-lfs
-        git lfs install
-        git clone --depth=1 --recursive https://github.com/blender/blender.git
-        cd blender
-        git submodule update --init --recursive
+        sudo apt install -y git cmake ninja-build gcc g++ python3-pip
+        python3 -m pip install --upgrade pip setuptools
 
-    - name: 📦 Install Dependencies
+    - name: Clone Blender Android dependencies
       run: |
-        sudo apt update
-        sudo apt install -y cmake git wget unzip ninja-build yasm \
-          build-essential libxi-dev libxcursor-dev libxrandr-dev \
-          libxinerama-dev libglu1-mesa-dev libglew-dev libopenal-dev \
-          libssl-dev libpulse-dev libxcursor-dev libxrender-dev python3
+        git clone https://projects.blender.org/blender/blender.git blender-source
+        cd blender-source
+        make update
 
-    - name: 📁 Setup Android SDK & NDK
-      run: |
-        mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-        cd $ANDROID_SDK_ROOT
-        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O tools.zip
-        unzip tools.zip -d cmdline-tools
-        mv cmdline-tools/cmdline-tools cmdline-tools/latest
+    - name: Download Android NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: ${{ env.ANDROID_NDK_VERSION }}
+        add-to-path: true
 
-        export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
-
-        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
-          "platform-tools" \
-          "platforms;android-${ANDROID_API_LEVEL}" \
-          "build-tools;30.0.3" \
-          "ndk;${ANDROID_NDK_VERSION}"
-
-    - name: ✅ Export Android Paths
+    - name: Set environment variables
       run: |
         echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${ANDROID_NDK_VERSION}" >> $GITHUB_ENV
-        echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "ANDROID_NDK_HOME=$ANDROID_NDK" >> $GITHUB_ENV
+        echo "ANDROID_ABI=${{ env.ANDROID_ABI }}" >> $GITHUB_ENV
+        echo "ANDROID_API=${{ env.ANDROID_API_LEVEL }}" >> $GITHUB_ENV
 
-    - name: 🔨 Build Blender for Android
+    - name: Configure Blender for Android
       run: |
-        cd blender
-        python3 ./build_files/utils/make_project.py \
-          --android \
-          --arch arm64-v8a \
-          --sdk-dir "$ANDROID_SDK_ROOT" \
-          --ndk-dir "$ANDROID_SDK_ROOT/ndk/${ANDROID_NDK_VERSION}" \
-          --verbose
+        cd blender-source
+        make platform=android arm64_v8a
 
-    - name: 📤 Upload Blender APK
+    - name: Build Blender for Android
+      run: |
+        cd blender-source
+        make platform=android arm64_v8a -j$(nproc)
+
+    - name: Upload APK (optional)
       uses: actions/upload-artifact@v4
       with:
-        name: blender-android-apk
-        path: blender/build_android_arm64_v8a/install/blender.apk
+        name: blender-android-arm64
+        path: blender-source/build_android_arm64_v8a/bin/*.apk
