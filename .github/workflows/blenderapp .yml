@@ -9,60 +9,52 @@ on:
 
 jobs:
   build:
-    name: Build Blender Android
+    name: Build Blender for Android (arm64-v8a)
     runs-on: ubuntu-latest
 
     env:
       ANDROID_NDK_VERSION: r25c
-      ANDROID_API_LEVEL: 24
-      ANDROID_ABI: arm64-v8a
       BLENDER_BRANCH: main
 
     steps:
+
+    - name: Set up Git
+      run: |
+        git config --global advice.detachedHead false
+
     - name: Checkout Blender source
       uses: actions/checkout@v3
       with:
         repository: blender/blender
         ref: ${{ env.BLENDER_BRANCH }}
         submodules: true
+        path: blender-source
 
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
-        sudo apt update
-        sudo apt install -y git cmake ninja-build gcc g++ python3-pip
+        sudo apt-get update
+        sudo apt-get install -y git cmake ninja-build gcc g++ python3-pip unzip wget openjdk-11-jdk
         python3 -m pip install --upgrade pip setuptools
 
-    - name: Clone Blender Android dependencies
-      run: |
-        git clone https://projects.blender.org/blender/blender.git blender-source
-        cd blender-source
-        make update
-
-    - name: Download Android NDK
+    - name: Install Android NDK
       uses: nttld/setup-ndk@v1
       with:
         ndk-version: ${{ env.ANDROID_NDK_VERSION }}
         add-to-path: true
 
-    - name: Set environment variables
-      run: |
-        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$ANDROID_NDK" >> $GITHUB_ENV
-        echo "ANDROID_ABI=${{ env.ANDROID_ABI }}" >> $GITHUB_ENV
-        echo "ANDROID_API=${{ env.ANDROID_API_LEVEL }}" >> $GITHUB_ENV
-
-    - name: Configure Blender for Android
+    - name: Clone & update all submodules
       run: |
         cd blender-source
-        make platform=android arm64_v8a
+        make update
+        git submodule update --init --recursive
 
-    - name: Build Blender for Android
+    - name: Build Blender for Android (arm64)
       run: |
         cd blender-source
-        make platform=android arm64_v8a -j$(nproc)
+        make android_arm64_release -j$(nproc)
 
-    - name: Upload APK (optional)
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: blender-android-arm64
-        path: blender-source/build_android_arm64_v8a/bin/*.apk
+        path: blender-source/build_android_arm64_release/bin/*.apk
