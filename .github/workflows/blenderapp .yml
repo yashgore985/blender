@@ -1,4 +1,4 @@
-name: Build Blender 3.6 APK (Modeling Only, Fixed)
+name: Build Blender 3.6 APK (Modeling Only)
 
 on:
   workflow_dispatch:
@@ -11,6 +11,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Git identity
+        run: |
+          git config --global user.name "yashgore985"
+          git config --global user.email "yashgore985@example.com"
+
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -18,11 +23,11 @@ jobs:
             git-lfs cmake ninja-build wget unzip build-essential \
             python3-dev python3-pip \
             libsdl2-dev libxi-dev libfreetype6-dev libopenal-dev \
-            libx11-dev libjpeg-dev libpng-dev zlib1g-dev \
-            libjpeg8-dev libjpeg-turbo8-dev
+            libx11-dev libjpeg-dev libpng-dev zlib1g-dev
 
-      - name: Configure Git LFS
-        run: git lfs install --skip-smudge
+      - name: Set up Git LFS
+        run: |
+          git lfs install --skip-smudge
 
       - name: Clone Blender source (v3.6 LTS)
         run: |
@@ -31,10 +36,6 @@ jobs:
           git checkout blender-v3.6-release
           git submodule update --init --recursive
           git lfs pull --exclude="assets/brushes/essentials_brushes-curve_sculpt.blend"
-
-      - name: Clone missing Addons repo
-        run: |
-          git clone https://projects.blender.org/blender/blender-addons.git blender-source/scripts/addons
 
       - name: Download Android NDK r25c
         run: |
@@ -52,7 +53,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=$HOME/android-ndk/build/cmake/android.toolchain.cmake \
             -DANDROID_ABI=arm64-v8a \
             -DANDROID_PLATFORM=android-24 \
-            -DWITH_PYTHON_INSTALL=ON \
+            -DWITH_PYTHON_INSTALL=OFF \
             -DWITH_PYTHON_MODULE=OFF \
             -DWITH_PLAYER=OFF \
             -DWITH_SDL=ON \
@@ -69,14 +70,15 @@ jobs:
             -DWITH_SCULPT=OFF \
             -DWITH_SIMULATION=OFF \
             -DWITH_COMPOSITOR=OFF \
-            -DWITH_VSE=OFF
+            -DWITH_VSE=OFF \
+            -DWITH_DRACO=OFF
 
       - name: Build Blender APK
         run: |
           cd build
-          ninja blender
+          ninja
 
-      - name: Upload APK
+      - name: Upload Blender APK
         uses: actions/upload-artifact@v4
         with:
           name: blender-modeling-only-apk
