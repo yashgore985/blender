@@ -1,4 +1,4 @@
-name: Build Blender 3.6 APK (Modeling Only)
+name: Build Blender 3.6 APK (Modeling Only, Fixed)
 
 on:
   workflow_dispatch:
@@ -18,7 +18,8 @@ jobs:
             git-lfs cmake ninja-build wget unzip build-essential \
             python3-dev python3-pip \
             libsdl2-dev libxi-dev libfreetype6-dev libopenal-dev \
-            libx11-dev libjpeg-dev libpng-dev zlib1g-dev
+            libx11-dev libjpeg-dev libpng-dev zlib1g-dev \
+            libjpeg8-dev libjpeg-turbo8-dev
 
       - name: Configure Git LFS
         run: git lfs install --skip-smudge
@@ -31,6 +32,10 @@ jobs:
           git submodule update --init --recursive
           git lfs pull --exclude="assets/brushes/essentials_brushes-curve_sculpt.blend"
 
+      - name: Clone missing Addons repo
+        run: |
+          git clone https://projects.blender.org/blender/blender-addons.git blender-source/scripts/addons
+
       - name: Download Android NDK r25c
         run: |
           wget https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
@@ -39,7 +44,7 @@ jobs:
 
       - name: Configure Blender (Modeling APK)
         run: |
-          mkdir build
+          mkdir -p build
           cd build
           cmake ../blender-source \
             -G Ninja \
@@ -47,7 +52,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=$HOME/android-ndk/build/cmake/android.toolchain.cmake \
             -DANDROID_ABI=arm64-v8a \
             -DANDROID_PLATFORM=android-24 \
-            -DWITH_PYTHON_INSTALL=OFF \
+            -DWITH_PYTHON_INSTALL=ON \
             -DWITH_PYTHON_MODULE=OFF \
             -DWITH_PLAYER=OFF \
             -DWITH_SDL=ON \
