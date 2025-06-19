@@ -1,4 +1,4 @@
-name: Build Blender 3.6 LTS for Android (Modeling Only)
+name: Build Blender Android APK (Modeling Only)
 
 on:
   workflow_dispatch:
@@ -8,12 +8,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Build Blender APK (Modeling Only)
+    name: Build Blender 3.6 LTS (Modeling Only)
+    
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+      - name: Checkout Blender Source
+        uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install Build Dependencies
         run: |
           sudo apt update
           sudo apt install -y ninja-build cmake git wget unzip \
@@ -26,7 +27,7 @@ jobs:
           unzip android-ndk-r25c-linux.zip
           mv android-ndk-r25c $HOME/android-ndk
 
-      - name: Configure Blender (Modeling Only)
+      - name: Configure Blender for Android (Modeling Only)
         run: |
           mkdir build && cd build
           cmake ../ \
@@ -53,14 +54,13 @@ jobs:
             -DWITH_GHOST_WAYLAND=OFF \
             -DWITH_HEADLESS=OFF
 
-      - name: Build Blender
-        run: cd build && ninja
+      - name: Build Blender APK
+        run: |
+          cd build
+          ninja
 
-      - name: Package Blender APK
-        run: cd build && zip -r blender-modeling.apk.zip bin/
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v3
+      - name: Upload Blender APK (Modeling Only)
+        uses: actions/upload-artifact@v4
         with:
           name: blender-modeling-apk
-          path: build/blender-modeling.apk.zip
+          path: build/bin/
