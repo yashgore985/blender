@@ -1,91 +1,60 @@
-name: Blender Android APK Build (with Debug)
+name: Build Blender Android APK (Modeling Only)
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-
-    env:
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
-      ANDROID_NDK_VERSION: "25.2.9519653"
-      ANDROID_API_LEVEL: "30"
-      PYTHON_VERSION: "3.11"
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout source with submodules
-      uses: actions/checkout@v4
-      with:
-        submodules: true
+    - name: Checkout Blender
+      uses: actions/checkout@v3
 
-    - name: Setup Java 17
-      uses: actions/setup-java@v3
-      with:
-        distribution: temurin
-        java-version: '17'
-
-    - name: Setup Python 3.11
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-
-    - name: Install Linux build tools
+    - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install -y cmake git wget unzip ninja-build yasm \
-          build-essential libxi-dev libxcursor-dev libxrandr-dev \
-          libxinerama-dev libglu1-mesa-dev libglew-dev libopenal-dev \
-          libssl-dev libpulse-dev libxcursor-dev libxrender-dev
+        sudo apt install -y git cmake ninja-build python3 zip wget pkg-config openjdk-17-jdk
 
-    - name: Setup Android SDK & NDK
-      run: |
-        mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-        cd $ANDROID_SDK_ROOT
-        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O tools.zip
-        unzip tools.zip -d cmdline-tools
-        mv cmdline-tools/cmdline-tools cmdline-tools/latest
-
-        echo "PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH" >> $GITHUB_ENV
-        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses
-        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
-          "platform-tools" \
-          "platforms;android-${ANDROID_API_LEVEL}" \
-          "build-tools;30.0.3" \
-          "ndk;${ANDROID_NDK_VERSION}"
-
-    - name: Export SDK vars
-      run: |
-        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${ANDROID_NDK_VERSION}" >> $GITHUB_ENV
-        echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-
-    - name: Debug SDK/NDK install
-      run: |
-        echo "Contents of SDK root:" && ls -R $ANDROID_SDK_ROOT
-        echo "NDK folder:" && ls $ANDROID_SDK_ROOT/ndk/${ANDROID_NDK_VERSION}
-    - name: Clone Blender Source (fallback)
-  if: steps.checkout.outputs.submodules != 'true'
-  run: |
-    git clone --recursive https://projects.blender.org/blender/blender.git
-    - name: Debug Blender project files
-      run: |
-        echo "Listing Blender root:" && ls -a .
-        echo "Submodule dirs:" && ls -d blender/external*
-
-    - name: Build Blender Android (with debug)
-      run: |
-        python3 -u ./build_files/utils/make_project.py \
-          --android \
-          --arch arm64-v8a \
-          --sdk-dir $ANDROID_SDK_ROOT \
-          --ndk-dir $ANDROID_SDK_ROOT/ndk/${ANDROID_NDK_VERSION} \
-          --verbose
-
-    - name: Upload APK artifact
-      if: success()
-      uses: actions/upload-artifact@v4
+    - name: Setup Android SDK + NDK
+      uses: android-actions/setup-android@v3
       with:
-        name: blender-android-apk
-        path: build_android_arm64_v8a/install/blender.apk
+        sdk-version: 33
+        ndk-version: 25.2.9519653
+
+    - name: Clone Blender
+      run: |
+        git clone https://github.com/blender/blender.git
+        cd blender
+        git submodule update --init --recursive
+
+    - name: Configure CMake (Modeling Only)
+      run: |
+        cd blender
+        mkdir build-android && cd build-android
+        cmake .. \
+          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+          -DANDROID_ABI=arm64-v8a \
+          -DANDROID_PLATFORM=android-24 \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DWITH_PYTHON=OFF \
+          -DWITH_CYCLES=OFF \
+          -DWITH_VSE=OFF \
+          -DWITH_COMPOSITOR=OFF \
+          -DWITH_SCULPT_MODE=OFF \
+          -DWITH_MOD_FLUID=OFF \
+          -DWITH_IMAGE_WEBP=OFF \
+          -DWITH_OPENVDB=OFF \
+          -DWITH_GHOST_SDL=ON \
+          -DWITH_GHOST_X11=OFF
+
+    - name: Build Blender
+      run: |
+        cd blender/build-android
+        make -j$(nproc)
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: blender-modeling-apk
+        path: blender/build-android/bin/*.apk
